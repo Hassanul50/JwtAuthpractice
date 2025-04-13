@@ -25,7 +25,7 @@ namespace JwtAuthpractice.Controllers
         }
 
         [HttpPost("login")]
-        public async Task<ActionResult<string>> Login(UserDTO request)
+        public async Task<ActionResult<TokenResponseDto>> Login(UserDTO request)
         {
             //if (user.UserName != request.UserName)
             //{
@@ -35,13 +35,23 @@ namespace JwtAuthpractice.Controllers
             //{
             //    return BadRequest("Wrong Password");
             //}
-            var token = await authService.LoginAsync(request);
-            if (token is null)
+            var result = await authService.LoginAsync(request);
+            if (result is null)
             {
                 return BadRequest("Invalid user name or password");
             }
-            return Ok(token);
+            return Ok(result);
 
+        }
+        [HttpPost("refresh-token")]
+        public async Task<ActionResult<TokenResponseDto>> RefreshToken(RefreshTokenRequestDto request)
+        {
+            var result = await authService.RefreshTokenAsync(request);
+            if (result is null || result.AccessToken is null || result.RefreshToken is null)
+            {
+                return Unauthorized("Invalid Request token");
+            }
+            return Ok(result);
         }
 
         [Authorize]

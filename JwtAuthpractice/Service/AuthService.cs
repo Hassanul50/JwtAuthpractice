@@ -6,13 +6,14 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace JwtAuthpractice.Service
 {
     public class AuthService(UserDbContext context, IConfiguration configuration) : IAuthService
     {
-        public async Task<string?> LoginAsync(UserDTO request)
+        public async Task<TokenResponseDto?> LoginAsync(UserDTO request)
         {
             var user = await context.Users.FirstOrDefaultAsync(u => u.UserName == request.UserName);
             if (user is null)
@@ -24,8 +25,19 @@ namespace JwtAuthpractice.Service
                 return null;
             }
 
-            return CreateToken(user); ;
+
+            return await CreateTokenRespons(user); ;
         }
+
+        private async Task<TokenResponseDto> CreateTokenRespons(User? user)
+        {
+            return new TokenResponseDto
+            {
+                AccessToken = CreateToken(user),
+                RefreshToken = await GenerateAndSaveRefreshTokenAsync(user)
+            };
+        }
+
         private string CreateToken(User user)
         {
             var claims = new List<Claim>
@@ -49,8 +61,31 @@ namespace JwtAuthpractice.Service
 
 
         }
+        private string GenerateRefreshToken()
+        {
+            var RandomNumber = new byte[64];
+            using var rng = RandomNumberGenerator.Create();
+            rng.GetBytes(RandomNumber);
+            return Convert.ToBase64String(RandomNumber);
 
-
+        }
+        private async Task<string> GenerateAndSaveRefreshTokenAsync(User user)
+        {
+            var refreshToken = GenerateRefreshToken();
+            user.RefreshToken = refreshToken;
+            user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(7);
+            await context.SaveChangesAsync();
+            return refreshToken;
+        }
+        private async Task<User> ValidedRefreshTokenAsync(Guid userId, string refreshToken)
+        {
+            var user = await context.Users.FindAsync(userId);
+            if (user is null || user.RefreshToken != refreshToken || user.RefreshTokenExpiryTime <= DateTime.UtcNow)
+            {
+                return null;
+            }
+            return user;
+        }
 
         public async Task<User?> RegisterAsync(UserDTO request)
         {
@@ -67,6 +102,16 @@ namespace JwtAuthpractice.Service
             await context.SaveChangesAsync();
 
             return user;
+
+        }
+
+        public async Task<TokenResponseDto> RefreshTokenAsync(RefreshTokenRequestDto request)
+        {
+            var user = await ValidedRefreshTokenAsync(request.UserId, request.RefreshToken);
+            if (user is null)
+                return null;
+
+            return await CreateTokenRespons(user);
 
         }
     }

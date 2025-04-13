@@ -6,6 +6,7 @@ namespace JwtAuthpractice.Service
     public interface IAuthService
     {
         Task<User?> RegisterAsync(UserDTO request);
-        Task<string?> LoginAsync(UserDTO request);
+        Task<TokenResponseDto?> LoginAsync(UserDTO request);
+        Task<TokenResponseDto> RefreshTokenAsync(RefreshTokenRequestDto request);
     }
 }
